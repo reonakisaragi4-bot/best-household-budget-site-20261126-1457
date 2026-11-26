@@ -1,119 +1,51 @@
-/* Canvas charts for HearthLedger, drawn by hand — no library, no network.
-   Both charts respect the device pixel ratio so they stay crisp on phones. */
+// Charts, drawn as inline SVG from the live figures — no library, no
+// network. Both builders return an SVG string the views drop into a card.
 
-function setupCanvas(canvas, width, height) {
-  const ratio = window.devicePixelRatio || 1;
-  canvas.width = Math.round(width * ratio);
-  canvas.height = Math.round(height * ratio);
-  canvas.style.width = width + 'px';
-  canvas.style.height = height + 'px';
-  const ctx = canvas.getContext('2d');
-  ctx.scale(ratio, ratio);
-  return ctx;
+import { rp, rpShort, monthLabel } from "./format.js";
+
+// Donut: one ring segment per slice. Each slice is a circle with a
+// dash pattern — the coloured dash is the slice, the gap is the rest —
+// rotated so the first slice starts at twelve o'clock.
+export function donutSvg(slices, total) {
+  const R = 80;
+  // Nothing spent yet: a plain grey ring instead of a broken chart.
+  if (!total || total <= 0) {
+    return `<svg viewBox="0 0 220 220" width="220" height="220" role="img" aria-label="Spending by category donut chart"><circle cx="110" cy="110" r="${R}" fill="none" stroke="#e5ddd0" stroke-width="34" /><text x="110" y="104" text-anchor="middle" class="donut-centre-top">Total spent</text><text x="110" y="128" text-anchor="middle" class="donut-centre-amount">Rp 0</text></svg>`;
+  }
+  // pathLength=100 makes every dash unit a percent of the ring, so the
+  // offset math stays in plain percentages: slice i starts where the
+  // previous slices ended, and 25 puts the first slice at twelve o'clock.
+  let startPct = 0;
+  const rings = slices.map((s) => {
+    const frac = total > 0 ? s.spent / total : 0;
+    const len = Math.max(frac * 100 - 0.4, 0.4);
+    const svg = `<circle cx="110" cy="110" r="${R}" fill="none" stroke="${s.cat.color}" stroke-width="34" pathLength="100" stroke-dasharray="${len.toFixed(1)} ${(100 - len).toFixed(1)}" stroke-dashoffset="${(25 - startPct).toFixed(1)}" />`;
+    startPct += frac * 100;
+    return svg;
+  }).join("");
+  return `<svg viewBox="0 0 220 220" width="220" height="220" role="img" aria-label="Spending by category donut chart">${rings}<text x="110" y="104" text-anchor="middle" class="donut-centre-top">Total spent</text><text x="110" y="128" text-anchor="middle" class="donut-centre-amount">${rpShort(total)}</text></svg>`;
 }
 
-export function drawDonut(canvas, slices) {
-  const size = 220;
-  const ctx = setupCanvas(canvas, size, size);
-  const cx = size / 2;
-  const cy = size / 2;
-  const outer = 96;
-  const inner = 58;
-  const total = slices.reduce((sum, s) => sum + s.value, 0);
-  if (total <= 0) {
-    ctx.fillStyle = '#ece5d2';
-    ctx.beginPath();
-    ctx.arc(cx, cy, outer, 0, Math.PI * 2);
-    ctx.arc(cx, cy, inner, 0, Math.PI * 2, true);
-    ctx.fill();
-    return;
-  }
-  let angle = -Math.PI / 2;
-  for (const slice of slices) {
-    const sweep = (slice.value / total) * Math.PI * 2;
-    ctx.fillStyle = slice.colour;
-    ctx.beginPath();
-    ctx.moveTo(cx, cy);
-    ctx.arc(cx, cy, outer, angle, angle + sweep);
-    ctx.closePath();
-    ctx.fill();
-    angle += sweep;
-  }
-  ctx.fillStyle = '#fffdf7';
-  ctx.beginPath();
-  ctx.arc(cx, cy, inner, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = '#22302a';
-  ctx.font = '700 15px system-ui, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText('Total spent', cx, cy - 4);
-  ctx.font = '800 17px system-ui, sans-serif';
-  ctx.fillText(shortRupiah(total), cx, cy + 18);
-}
-
-function shortRupiah(amount) {
-  if (amount >= 1000000) return 'Rp ' + (amount / 1000000).toFixed(1) + ' jt';
-  if (amount >= 1000) return 'Rp ' + Math.round(amount / 1000) + ' rb';
-  return 'Rp ' + amount;
-}
-
-export function drawMonthlyBars(canvas, rows) {
-  const width = 640;
-  const height = 280;
-  const ctx = setupCanvas(canvas, width, height);
-  const padLeft = 74;
-  const padBottom = 34;
-  const padTop = 16;
-  const plotWidth = width - padLeft - 16;
-  const plotHeight = height - padTop - padBottom;
-  const max = Math.max(...rows.flatMap((r) => [r.income, r.expenses]), 1);
-  const step = niceStep(max);
-  const top = Math.ceil(max / step) * step;
-
-  ctx.font = '12px system-ui, sans-serif';
-  ctx.fillStyle = '#6b756e';
-  ctx.textAlign = 'right';
-  for (let value = 0; value <= top; value += step) {
-    const y = padTop + plotHeight - (value / top) * plotHeight;
-    ctx.strokeStyle = '#e3dcc9';
-    ctx.beginPath();
-    ctx.moveTo(padLeft, y);
-    ctx.lineTo(width - 16, y);
-    ctx.stroke();
-    ctx.fillText(shortRupiah(value), padLeft - 8, y + 4);
-  }
-
-  const groupWidth = plotWidth / rows.length;
-  const barWidth = Math.min(30, (groupWidth - 24) / 2);
-  rows.forEach((row, i) => {
-    const groupX = padLeft + i * groupWidth + groupWidth / 2;
-    const incomeH = (row.income / top) * plotHeight;
-    const expenseH = (row.expenses / top) * plotHeight;
-    ctx.fillStyle = '#1e5c46';
-    ctx.fillRect(groupX - barWidth - 3, padTop + plotHeight - incomeH, barWidth, incomeH);
-    ctx.fillStyle = '#b3372f';
-    ctx.fillRect(groupX + 3, padTop + plotHeight - expenseH, barWidth, expenseH);
-    ctx.fillStyle = '#22302a';
-    ctx.textAlign = 'center';
-    ctx.fillText(row.month.slice(5) + '/' + row.month.slice(2, 4), groupX, height - 12);
+// Grouped bars: income (green) next to expenses (red) for each month.
+// `months` is [{ label, income, expenses }]. The tallest bar sets the scale.
+export function monthBarsSvg(months) {
+  const W = 640;
+  const H = 260;
+  const BASE = 220;
+  const TOP = 18;
+  const max = Math.max(...months.map((m) => Math.max(m.income, m.expenses)), 1);
+  const slot = W / months.length;
+  const barW = 34;
+  let bars = "";
+  let labels = "";
+  months.forEach((m, i) => {
+    const cx = slot * i + slot / 2;
+    const inH = ((BASE - TOP) * m.income) / max;
+    const outH = ((BASE - TOP) * m.expenses) / max;
+    bars += `<rect x="${(cx - barW - 4).toFixed(1)}" y="${(BASE - inH).toFixed(1)}" width="${barW}" height="${inH.toFixed(1)}" rx="3" fill="#166534"><title>Income ${monthLabel(m.month)}: ${rp(m.income)}</title></rect>`;
+    bars += `<rect x="${(cx + 4).toFixed(1)}" y="${(BASE - outH).toFixed(1)}" width="${barW}" height="${outH.toFixed(1)}" rx="3" fill="#b91c1c"><title>Expenses ${monthLabel(m.month)}: ${rp(m.expenses)}</title></rect>`;
+    labels += `<text x="${cx.toFixed(1)}" y="${BASE + 20}" text-anchor="middle" class="bar-label">${monthLabel(m.month)}</text>`;
+    labels += `<text x="${cx.toFixed(1)}" y="${(BASE - Math.max(inH, outH) - 8).toFixed(1)}" text-anchor="middle" class="bar-value">${rpShort(Math.max(m.income, m.expenses))}</text>`;
   });
-
-  ctx.textAlign = 'left';
-  ctx.fillStyle = '#1e5c46';
-  ctx.fillRect(padLeft, height - 2, 12, 0); // keeps the legend row aligned below
-}
-
-export function drawBarsLegend() {
-  return (
-    '<span class="pill" style="background:#e7ecdf">■ Income</span> ' +
-    '<span class="pill bad" style="background:#f9dcd9">■ Expenses</span>'
-  );
-}
-
-function niceStep(max) {
-  const raw = max / 4;
-  const power = Math.pow(10, Math.floor(Math.log10(raw)));
-  const norm = raw / power;
-  const step = norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10;
-  return step * power;
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Income versus expenses by month bar chart"><line x1="0" y1="${BASE}" x2="${W}" y2="${BASE}" class="bar-axis" />${bars}${labels}</svg>`;
 }
