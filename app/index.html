@@ -3,104 +3,41 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>HearthLedger — Household Budget for the Wijaya Family</title>
-  <meta name="description" content="HearthLedger keeps one household's money in order: income and spending, monthly budgets per category, savings goals, upcoming bills and clear reports. Works offline, on desktop and on a phone.">
-  <link rel="stylesheet" href="style.css">
+  <title>HearthLedger — Keluarga Wijaya · November 2026</title>
+  <meta name="description" content="HearthLedger keeps the Wijaya household's November 2026 budget: transactions, monthly limits, savings goals and reports, all on this device.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2314532d'/%3E%3Cpath d='M16 7 L26 16 H22 V25 H10 V16 H6 Z' fill='%23ffffff'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="./style.css">
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand">
-      <span class="brand-mark" aria-hidden="true">⌂</span>
-      <span class="brand-name">HearthLedger</span>
-      <span class="brand-sub">Keluarga Wijaya · November 2026</span>
-    </div>
-    <nav class="main-nav" aria-label="Main pages">
-      <a href="#/overview" data-route="overview">Overview</a>
-      <a href="#/transactions" data-route="transactions">Transactions</a>
-      <a href="#/budgets" data-route="budgets">Budgets</a>
-      <a href="#/goals" data-route="goals">Savings Goals</a>
-      <a href="#/reports" data-route="reports">Reports</a>
+  <header class="site-header">
+    <a class="brand" href="#/overview"><span class="brand-mark" aria-hidden="true">⌂</span> HearthLedger</a>
+    <span class="brand-sub">Keluarga Wijaya · November 2026</span>
+    <nav class="site-nav" aria-label="Sections">
+      <a class="nav-link" href="#/overview">Overview</a>
+      <a class="nav-link" href="#/transactions">Transactions</a>
+      <a class="nav-link" href="#/budgets">Budgets</a>
+      <a class="nav-link" href="#/goals">Savings Goals</a>
+      <a class="nav-link" href="#/reports">Reports</a>
     </nav>
-    <button id="add-transaction-btn" class="btn btn-primary" type="button">+ Add transaction</button>
+    <button type="button" class="btn-primary" id="add-btn">+ Add transaction</button>
   </header>
 
-  <main id="view" class="view" aria-live="polite"></main>
+  <main class="wrap" id="page" aria-live="polite"></main>
 
-  <footer class="footer">
+  <div id="dialog-root"></div>
+
+  <footer class="site-footer">
     <p>HearthLedger keeps the Wijaya household's budget on this device only — nothing leaves the browser, no account, no network. Figures are in Indonesian rupiah (Rp).</p>
-    <p class="footer-links">
-      <a href="#/overview">Overview</a> ·
-      <a href="#/transactions">Transactions</a> ·
-      <a href="#/budgets">Budgets</a> ·
-      <a href="#/goals">Savings Goals</a> ·
+    <nav aria-label="Footer sections">
+      <a href="#/overview">Overview</a>
+      <a href="#/transactions">Transactions</a>
+      <a href="#/budgets">Budgets</a>
+      <a href="#/goals">Savings Goals</a>
       <a href="#/reports">Reports</a>
-    </p>
+    </nav>
+    <button type="button" id="reset-link">Reset the ledger to its November starting figures</button>
   </footer>
 
-  <div id="modal-backdrop" class="modal-backdrop" hidden>
-    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-      <h2 id="modal-title">Add transaction</h2>
-      <form id="transaction-form">
-        <div class="field">
-          <label for="tx-type">Type</label>
-          <select id="tx-type" name="type">
-            <option value="expense">Expense</option>
-            <option value="income">Income</option>
-          </select>
-        </div>
-        <div class="field">
-          <label for="tx-amount">Amount (Rp)</label>
-          <input id="tx-amount" name="amount" type="number" min="1" step="1" inputmode="numeric" placeholder="e.g. 250000" required>
-        </div>
-        <div class="field">
-          <label for="tx-category">Category</label>
-          <select id="tx-category" name="category"></select>
-        </div>
-        <div class="field">
-          <label for="tx-date">Date</label>
-          <input id="tx-date" name="date" type="date" value="2026-11-26" required>
-        </div>
-        <div class="field">
-          <label for="tx-note">Note</label>
-          <input id="tx-note" name="note" type="text" maxlength="80" placeholder="What was this for?">
-        </div>
-        <div class="field">
-          <label for="tx-account">Account</label>
-          <select id="tx-account" name="account">
-            <option>BCA — Everyday</option>
-            <option>BCA — Savings</option>
-            <option>Cash wallet</option>
-            <option>GoPay</option>
-          </select>
-        </div>
-        <p id="form-error" class="form-error" role="alert" hidden></p>
-        <div class="modal-actions">
-          <button type="button" id="modal-cancel" class="btn">Cancel</button>
-          <button type="submit" class="btn btn-primary">Save transaction</button>
-        </div>
-      </form>
-    </section>
-  </div>
-
-  <div id="goal-backdrop" class="modal-backdrop" hidden>
-    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="goal-modal-title">
-      <h2 id="goal-modal-title">Add to goal</h2>
-      <form id="goal-form">
-        <input type="hidden" id="goal-id" name="goalId">
-        <p id="goal-modal-text" class="modal-text"></p>
-        <div class="field">
-          <label for="goal-amount">Amount (Rp)</label>
-          <input id="goal-amount" name="amount" type="number" min="1" step="1" inputmode="numeric" placeholder="e.g. 500000" required>
-        </div>
-        <p id="goal-form-error" class="form-error" role="alert" hidden></p>
-        <div class="modal-actions">
-          <button type="button" id="goal-cancel" class="btn">Cancel</button>
-          <button type="submit" class="btn btn-primary">Add to goal</button>
-        </div>
-      </form>
-    </section>
-  </div>
-
-  <script type="module" src="main.js"></script>
+  <script type="module" src="./main.js"></script>
 </body>
 </html>
