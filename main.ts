@@ -1,42 +1,35 @@
-// HearthLedger hand-in program (Node 22, standard library only).
+// HearthLedger entry program (main.ts).
+// Hands the site in: copies app/ and screenshots/ from this repository
+// into the output directory and writes /output/dossier.json with
+// buildDossier from vendor/makefun-frontend.ts.
 //
-// The site is this repository's app/ folder: plain static files a browser opens
-// at app/index.html (ES modules, one stylesheet, no build step, no network
-// requests), its content held in its own files. This program hands it in: it
-// copies app/ and screenshots/ from beside this file to /output and writes
-// /output/dossier.json with buildDossier from the vendored make.fun library.
-// Leave vendor/makefun-frontend.ts exactly as the kit shipped it: the scorer
-// rebuilds the dossier with its own copy and compares the two byte for byte.
-//
-// Outside the grader's container, MAKEFUN_OUTPUT_DIR stands in for /output:
-//   mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
+// Outside the grader, MAKEFUN_OUTPUT_DIR stands in for /output.
+// The repository root is the directory this file lives in; the grader
+// mounts it read-only at /bot, so nothing is ever written back into it.
 
-import { cpSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { buildDossier } from './vendor/makefun-frontend.ts';
+import { cp, mkdir, stat, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { buildDossier } from "./vendor/makefun-frontend.ts";
 
-const here = fileURLToPath(new URL('.', import.meta.url));
-const out = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
+const repoRoot = dirname(fileURLToPath(import.meta.url));
+const outDir = process.env.MAKEFUN_OUTPUT_DIR || "/output";
 
-mkdirSync(out, { recursive: true });
-cpSync(join(here, 'app'), join(out, 'app'), { recursive: true });
-mkdirSync(join(out, 'screenshots'), { recursive: true });
-if (existsSync(join(here, 'screenshots'))) {
-  cpSync(join(here, 'screenshots'), join(out, 'screenshots'), { recursive: true });
+// Fail loudly, before copying anything, if the site is incomplete.
+for (const needed of ["app", "app/index.html", "screenshots"]) {
+  await stat(join(repoRoot, needed));
 }
 
-// The scorer's caps (reference/gate.json): only text_max_bytes shapes the
-// bytes; the others refuse an entry the scorer would refuse (more than 4
-// screenshots or one over 256 KiB; more than 993 files and directories in
-// app/ or 16 MiB of app files: app/ counts beside /output's own 1000-entry
-// cap, its screenshots/ and dossier.json).
-writeFileSync(
-  join(out, 'dossier.json'),
-  buildDossier(out, {
-    text_max_bytes: 163840,
-    screenshots: { max: 4, max_bytes: 262144 },
-    app_max_files: 993,
-    app_max_bytes: 16777216,
-  }),
-);
+await mkdir(join(outDir, "app"), { recursive: true });
+await mkdir(join(outDir, "screenshots"), { recursive: true });
+
+// Copy the whole site and the screenshots exactly as they are.
+await cp(join(repoRoot, "app"), join(outDir, "app"), { recursive: true });
+await cp(join(repoRoot, "screenshots"), join(outDir, "screenshots"), { recursive: true });
+
+// The dossier is built from the repository itself, so it always matches
+// the files handed in. Its text is capped at 160 KiB by the library.
+const dossier = await buildDossier(repoRoot, { text_max_bytes: 163840 });
+await writeFile(join(outDir, "dossier.json"), dossier);
+
+console.log("HearthLedger handed in to " + outDir);
